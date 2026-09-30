@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>排练字幕修订台</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <h1>🎭 排练字幕修订台</h1>
+    <span class="subtitle">SRT 导入 · 双分支修订 · 冲突合并 · 校验导出</span>
+  </header>
+
+  <main id="app">
+    <!-- 列表视图 -->
+    <section id="list-view" class="view">
+      <div class="card import-card">
+        <h2>导入 SRT 稿件</h2>
+        <p class="hint">
+          严格校验：序号须从 1 连续、时间码格式为
+          <code>00:00:01,000 --&gt; 00:00:03,500</code>、起点早于终点且片段不重叠。
+          任一错误都会指出位置并<strong>整份拒绝</strong>。
+        </p>
+        <div class="form-row">
+          <input type="text" id="import-name" placeholder="稿件名称（可留空）" />
+          <label class="file-btn">
+            选择 .srt 文件
+            <input type="file" id="import-file" accept=".srt,text/plain" hidden />
+          </label>
+        </div>
+        <textarea id="import-text" rows="8" placeholder="……也可以直接把 SRT 内容粘贴到这里"></textarea>
+        <div class="form-row right">
+          <button class="btn primary" id="btn-import">导入稿件</button>
+        </div>
+        <div id="import-errors" class="error-box hidden"></div>
+      </div>
+
+      <div class="card">
+        <h2>稿件列表</h2>
+        <table class="data-table" id="manuscript-table">
+          <thead>
+            <tr>
+              <th>ID</th><th>名称</th><th>原稿条数</th>
+              <th>分支 A</th><th>分支 B</th><th>合并稿</th>
+              <th>导入时间</th><th></th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+        <p id="empty-tip" class="hint">还没有稿件，先在上方导入一份 SRT。</p>
+      </div>
+    </section>
+
+    <!-- 详情视图 -->
+    <section id="detail-view" class="view hidden">
+      <div class="detail-head">
+        <button class="btn ghost" id="btn-back">← 返回列表</button>
+        <h2 id="detail-title"></h2>
+      </div>
+
+      <nav class="tabs" id="tabs">
+        <button class="tab" data-tab="origin">原稿</button>
+        <button class="tab" data-tab="a">修订分支 A</button>
+        <button class="tab" data-tab="b">修订分支 B</button>
+        <button class="tab" data-tab="merge">合并 A+B</button>
+        <button class="tab" data-tab="merged">合并结果</button>
+      </nav>
+
+      <!-- 原稿 -->
+      <div class="tab-panel" data-panel="origin">
+        <div class="toolbar">
+          <button class="btn" id="btn-view-origin-raw">查看原始 SRT 全文</button>
+          <span class="hint">原稿只读，作为两条分支与合并时的共同基线。</span>
+        </div>
+        <div id="origin-segments" class="seg-list"></div>
+      </div>
+
+      <!-- 分支 A / B（结构由 JS 克隆） -->
+      <div class="tab-panel" data-panel="a">
+        <div class="toolbar">
+          <button class="btn primary branch-create" data-branch="a">从原稿创建分支 A</button>
+          <button class="btn warn branch-reset hidden" data-branch="a">恢复为原稿</button>
+          <button class="btn branch-export hidden" data-branch="a">导出 SRT</button>
+          <span class="branch-status hidden"></span>
+        </div>
+        <div class="seg-list branch-segments" data-branch="a"></div>
+      </div>
+
+      <div class="tab-panel" data-panel="b">
+        <div class="toolbar">
+          <button class="btn primary branch-create" data-branch="b">从原稿创建分支 B</button>
+          <button class="btn warn branch-reset hidden" data-branch="b">恢复为原稿</button>
+          <button class="btn branch-export hidden" data-branch="b">导出 SRT</button>
+          <span class="branch-status hidden"></span>
+        </div>
+        <div class="seg-list branch-segments" data-branch="b"></div>
+      </div>
+
+      <!-- 合并 -->
+      <div class="tab-panel" data-panel="merge">
+        <div class="toolbar">
+          <button class="btn primary" id="btn-merge-preview">计算合并预览</button>
+          <span class="hint">同一来源片段两边都改过才需要选择；仅一边的改动自动保留，绝不按保存先后覆盖。</span>
+        </div>
+        <div id="merge-summary" class="merge-summary hidden"></div>
+        <div id="merge-conflicts"></div>
+        <div id="merge-auto"></div>
+        <div class="toolbar" id="merge-commit-bar" hidden>
+          <button class="btn primary" id="btn-merge-commit">提交合并结果</button>
+          <span id="merge-commit-msg" class="hint"></span>
+        </div>
+      </div>
+
+      <!-- 合并结果 -->
+      <div class="tab-panel" data-panel="merged">
+        <div class="toolbar">
+          <button class="btn primary" id="btn-merged-export">导出合并稿 SRT</button>
+          <span class="hint">导出前自动校验时间非负、起点早于终点、片段不重叠。</span>
+        </div>
+        <div id="merged-segments" class="seg-list"></div>
+      </div>
+    </section>
+  </main>
+
+  <!-- 原稿全文弹窗 -->
+  <div class="modal-mask hidden" id="modal-mask">
+    <div class="modal">
+      <div class="modal-head">
+        <h3 id="modal-title"></h3>
+        <button class="btn ghost" id="modal-close">关闭</button>
+      </div>
+      <pre id="modal-body"></pre>
+    </div>
+  </div>
+
+  <div id="toast" class="toast hidden"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>

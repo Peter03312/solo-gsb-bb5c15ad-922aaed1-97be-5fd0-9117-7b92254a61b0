@@ -1,0 +1,24 @@
+services:
+  subtitle-app:
+    build: .
+    image: rehearsal-subtitle-reviser:latest
+    container_name: rehearsal-subtitle-app
+    ports:
+      - "${HOST_PORT:-3000}:3000"
+    environment:
+      # 容器内监听地址与端口（一般无需修改）
+      HOST: 0.0.0.0
+      PORT: 3000
+      # SQLite 数据库文件存放目录（已挂载到宿主机，数据持久化）
+      DATA_DIR: /app/data
+    volumes:
+      - subtitle-data:/app/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/manuscripts').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  subtitle-data:
